@@ -1,1 +1,1 @@
-<h1>Active shape model in KU leuven</h1>
+<h1>Active shape model - KU leuven computer vision exam</h1>
