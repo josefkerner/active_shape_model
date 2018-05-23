@@ -23,27 +23,50 @@ class ActiveShape:
 
         self.loadImages()
 
-        self.shapes = ProcusterAnalysis(self.images).shapes
+        procrustes = ProcusterAnalysis(self.images)
 
-        print(self.shapes[1].points[0].x)
-
-        self.getLandmarksMatrix()
-
+        self.shapes = procrustes.shapes
+        self.w = procrustes.w
 
 
-        self.pca()
+        print('procrusted point',self.shapes[1].pts[0].y)
 
-        self.shape = Shape()
-        self.shape.points = self.shape.vecToPoints(self.pca_model['mean'])
+
+        # obtain shape matrix from points
+        self.getShapesMatrix()
+
+        (self.evals, self.evecs, self.mean, self.modes) = \
+        self.__construct_model(self.shapes)
+
+        print(np.sum(self.mean))
+
+
+
+        # calculating pca
+        #self.pca()
+
+        # constructing starting shape points from mean shape vector
+        self.shape = self.shapes[0]
+        #self.shape.points = self.shape.vecToPoints(self.pca_model['mean'])
 
         #self.iterateModel()
 
-        # doing procuster analysis
-        # swithc with PCA when its working
 
+    def generate_example(self, b):
+        """ b is a vector of floats to apply to each mode of variation
+        """
+        # Need to make an array same length as mean to apply to eigen
+        # vectors
+        full_b = np.zeros(len(self.mean))
+        for i in range(self.modes): full_b[i] = b[i]
 
+        p = self.mean
+        for i in range(self.modes): p = p + full_b[i]*self.evecs[:,i]
 
-    def getLandmarksMatrix(self):
+        # Construct a shape object
+        return Shape.from_vector(p)
+
+    def getShapesMatrix(self):
 
         # dimensions have to be N x P
         # N = number of images
@@ -52,13 +75,50 @@ class ActiveShape:
 
         for shape in self.shapes:
             landmarksVector = []
-            for point in shape.points:
+            for point in shape.pts:
                 landmarksVector.append(point.x)
                 landmarksVector.append(point.y)
 
 
             matrix = np.vstack([matrix,landmarksVector])
         self.landmarksMatrix = matrix
+
+    def __construct_model(self, shapes):
+        """ Constructs the shape model
+        """
+        shape_vectors = np.array([s.get_vector() for s in self.shapes])
+        mean = np.mean(shape_vectors, axis=0)
+
+        # Move mean to the origin
+        # FIXME Clean this up...
+        mean = np.reshape(mean, (-1,2))
+        min_x = min(mean[:,0])
+        min_y = min(mean[:,1])
+
+        #mean = np.array([pt - min(mean[:,i]) for i in [0,1] for pt in mean[:,i]])
+        #mean = np.array([pt - min(mean[:,i]) for pt in mean for i in [0,1]])
+        mean[:,0] = [x - min_x for x in mean[:,0]]
+        mean[:,1] = [y - min_y for y in mean[:,1]]
+        #max_x = max(mean[:,0])
+        #max_y = max(mean[:,1])
+        #mean[:,0] = [x/(2) for x in mean[:,0]]
+        #mean[:,1] = [y/(3) for y in mean[:,1]]
+        mean = mean.flatten()
+        #print mean
+
+        # Produce covariance matrix
+        cov = np.cov(shape_vectors, rowvar=0)
+        # Find eigenvalues/vectors of the covariance matrix
+        evals, evecs = np.linalg.eig(cov)
+
+        # Find number of modes required to describe the shape accurately
+        t = 0
+        for i in range(len(evals)):
+          if sum(evals[:i]) / sum(evals) < 0.99:
+            t = t + 1
+          else: break
+        print "Constructed model with %d modes of variation" % t
+        return (evals[:t], evecs[:,:t], mean, t)
 
 
     def pca(self):
@@ -94,14 +154,46 @@ class ActiveShape:
     def normalize_vector(self,vector,eigenval):
         return vector;
 
+    def doIteration2(self, image):
 
 
-    def doIteration(self):
+
+        Yshape = Shape([])
+
+        print(self.shape.pts)
+        Yshape.pts = utils.getYLandmarks(self.shape.pts, image)
+
+        meanPoints = Shape.from_vector(self.mean)
+
+        print(Yshape.pts)
+
+        new_s = Yshape.align_to_shape(Shape.from_vector(self.mean), self.w)
+
+        var = new_s.get_vector() - self.mean
+        new = self.mean
+        for i in range(len(self.evecs.T)):
+            b = np.dot(self.evecs[:,i],var)
+            max_b = 2*math.sqrt(self.evals[i])
+            b = max(min(b, max_b), -max_b)
+            new = new + self.evecs[:,i]*b
+
+        self.shape = Shape.from_vector(new).align_to_shape(Yshape, self.w)
+
+        print(self.shape.pts[0].y)
+
+        #utils.drawShape(image,self.shape.pts)
+
+    '''
+    def doIteration(self, image):
 
         # get new shape based on previous iteration shape
         # starting shape is a mean shape
         Yshape = Shape([])
-        Yshape.points = utils.getYLandmarks(self.shape.points)
+        Yshape.points = utils.getYLandmarks(self.shape.points, image)
+
+        print(Shape.from_vector(self.mean))
+
+        new_s = Yshape.align_to_shape(Shape.from_vector(self.mean), self.w)
 
 
         shape = Yshape.pointsToVec()
@@ -149,6 +241,7 @@ class ActiveShape:
 
         #self.shape = Shape.from_vector(new).align_to_shape(s, self.asm.w)
 
+    '''
     def loadImages(self):
         images = []
         dir_images = "_Data/Radiographs/"
@@ -168,6 +261,7 @@ class ActiveShape:
 model = ActiveShape()
 
 
-for i in range(1):
-    model.doIteration()
+for i in range(2):
+
+    model.doIteration2('_Data/Radiographs/01.tif')
 

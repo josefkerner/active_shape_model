@@ -7,11 +7,13 @@ class ProcusterAnalysis:
     # returns new images array with landmarks scaled, aligned and transformed
     def __init__(self,images):
         self.images = images
-        self.doProcrustes()
 
         self.shapes = []
 
+
         self.getShapes()
+
+        print('original point',self.shapes[1].pts[0].y)
 
         self.w = self.__create_weight_matrix(self.shapes)
 
@@ -23,11 +25,6 @@ class ProcusterAnalysis:
             shape = Shape(image.points)
             self.shapes.append(shape)
 
-    def doProcrustes(self):
-        original_landmarks = self.getTeethMatrix(self.images[0].teeth)
-        current_landmarks = self.getTeethMatrix(self.images[1].teeth)
-
-        mtx1, mtx2, disparity = procrustes(original_landmarks, current_landmarks)
 
     def getTeethMatrix(self,teeth):
         teethMatrix = np.empty((0,80),np.uint8)
@@ -71,7 +68,8 @@ class ProcusterAnalysis:
             # for all shapes
             w[k] += np.var(distances[:, k, l])
         # Invert weights
-        return 1/w
+        self.w = 1/w
+        return self.w
 
     def __get_mean_shape(self, shapes):
         s = shapes[0].pointsToVec()

@@ -107,10 +107,10 @@ class utils:
         utils.displayImg('drawn shape',img)
 
     @staticmethod
-    def getYLandmarks(points):
+    def getYLandmarks(points, image):
 
         counter = 0
-        matrix = cv2.imread('_Data/Radiographs/01.tif')
+        matrix = cv2.imread(image)
         matrix = cv2.cvtColor(matrix, cv2.COLOR_BGR2GRAY)
 
         landmarksY = []
@@ -140,6 +140,8 @@ class utils:
 
             pixels = utils.createLineIterator(point1,point2,matrix)
             #cv2.line(matrix,(x_start,y_start),(x_end,y_end),(255,255,0))
+
+            # draw rectangle on a place of point
             cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
 
             a = sorted(pixels, key=lambda a_entry: a_entry[2])
@@ -148,11 +150,12 @@ class utils:
             x = int(a[0][0])
             y = int(a[0][1])
 
-            pointDict = Point(x,y)
+            point = Point(x,y)
 
+            # draw rectangle on a place of lowest intensity value
             cv2.rectangle(matrix, (x,y), (x+w, y+h), (0,0,255), 2)
 
-            landmarksY.append(pointDict)
+            landmarksY.append(point)
 
             counter = counter +1
 

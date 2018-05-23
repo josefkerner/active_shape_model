@@ -6,7 +6,6 @@ from utils import Point
 
 class Shape:
     def __init__(self, points=[]):
-        self.points = points
         self.pts = points
 
         self.Ypoints = []
@@ -14,6 +13,13 @@ class Shape:
     def add_point(self, point):
 
         self.pts.append(point)
+
+    @staticmethod
+    def from_vector(vec):
+        s = Shape([])
+        for i,j in np.reshape(vec, (-1,2)):
+            s.add_point(Point(i, j))
+        return s
 
     def align_to_shape(self, s, w):
         # s = first shape
@@ -37,6 +43,7 @@ class Shape:
         :param w: The weight matrix
         :return x: [ax, ay, tx, ty]
         """
+
 
         X1 = s.__get_X(w)
         X2 = self.__get_X(w)
@@ -62,7 +69,7 @@ class Shape:
         # For each point in current shape
 
 
-        for pt in self.points:
+        for pt in self.pts:
           new_x = (p[0]*pt.x - p[1]*pt.y) + p[2]
           new_y = (p[1]*pt.x + p[0]*pt.y) + p[3]
           new.add_point(Point(new_x, new_y)) # TODO!!!!
@@ -83,6 +90,12 @@ class Shape:
     def __get_C2(self, w, s):
         return sum([w[i]*(s.pts[i].y*self.pts[i].x - s.pts[i].x*self.pts[i].y) \
             for i in range(len(self.pts))])
+
+    def get_vector(self):
+        vec = np.zeros((320, 2))
+        for i in range(len(self.pts)):
+          vec[i,:] = [self.pts[i].x, self.pts[i].y]
+        return vec.flatten()
 
 
     def vecToPoints(self, vec):
@@ -107,14 +120,14 @@ class Shape:
         for test_image in test_images:
             matrix = cv2.imread(test_image)
 
-            utils.drawShape(matrix,self.points)
+            utils.drawShape(matrix,self.pts)
 
     def pointsToVec(self):
         #vec = np.empty((640,))
 
         vec = np.array([])
 
-        for point in self.points:
+        for point in self.pts:
             point_arr = [point.x,point.y]
             vec = np.append(vec,point_arr)
 
