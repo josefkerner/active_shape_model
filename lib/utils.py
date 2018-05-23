@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import math
 
 class utils:
     @staticmethod
@@ -98,10 +99,116 @@ class utils:
         h = 2
 
         for point in points:
-            x = int(point['x'])
-            y = int(point['y'])
+            x = int(point.x)
+            y = int(point.y)
 
 
             cv2.rectangle(img, (x,y), (x+w, y+h), (255,0,255), 2)
         utils.displayImg('drawn shape',img)
+
+    @staticmethod
+    def getYLandmarks(points):
+
+        counter = 0
+        matrix = cv2.imread('_Data/Radiographs/01.tif')
+        matrix = cv2.cvtColor(matrix, cv2.COLOR_BGR2GRAY)
+
+        landmarksY = []
+
+        for point in points:
+
+            if((counter+1) % 40 == 0): # last point of a single tooth
+
+                next_point = points[counter-39]
+                previous_point = points[counter-1]
+            elif (counter == 0): # counter at beggining
+                previous_point = points[39]
+                next_point = points[counter+1]
+            else:
+                previous_point = points[counter-1]
+                next_point = points[counter+1]
+
+            w = 2
+            h = 2
+            x = int(point.x)
+            y = int(point.y)
+
+            x_start, y_start, x_end, y_end = utils.drawPerpendick((x,y),previous_point,next_point,matrix)
+
+            point1 = np.array([x_start,y_start])
+            point2 = np.array([x_end,y_end])
+
+            pixels = utils.createLineIterator(point1,point2,matrix)
+            #cv2.line(matrix,(x_start,y_start),(x_end,y_end),(255,255,0))
+            cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
+
+            a = sorted(pixels, key=lambda a_entry: a_entry[2])
+
+            intensity = a[0][2]
+            x = int(a[0][0])
+            y = int(a[0][1])
+
+            pointDict = Point(x,y)
+
+            cv2.rectangle(matrix, (x,y), (x+w, y+h), (0,0,255), 2)
+
+            landmarksY.append(pointDict)
+
+            counter = counter +1
+
+        utils.displayImg('lines',matrix)
+
+        return landmarksY
+
+    @staticmethod
+    def drawPerpendick(start,previous_point,next_point,matrix):
+
+        lineSize = 50
+
+        x = start[0]
+        y = start[1]
+
+        x_prev = int(previous_point.x)
+        y_prev = int(previous_point.y)
+
+        x_next = int(next_point.x)
+        y_next = int(next_point.y)
+
+        vectorX = x_prev - x_next
+        vectorY = y_prev - y_next
+
+        mag = math.sqrt(vectorX*vectorX + vectorY*vectorY);
+
+        vectorX = vectorX / mag
+        vectorY = vectorY / mag
+
+        temp = vectorX;
+        vectorX = -vectorY;
+        vectorY = temp;
+
+        length = lineSize*(-1)
+
+        x_start = int(x + vectorX * length)
+        y_start = int(y + vectorY * length)
+
+        length = lineSize
+
+        x_end = int(x + vectorX * length)
+        y_end = int(y + vectorY * length)
+
+        return x_start,y_start,x_end,y_end
+
+
+class Point:
+    def __init__(self,x,y):
+        self.x = x;
+        self.y = y;
+
+    def get(self):
+        return {'x':self.x, 'y':self.y}
+
+    def dist(self, p):
+        #Return the distance of this point to another point param p: The other point
+        return math.sqrt((p.x - self.x)**2 + (p.y - self.y)**2)
+
 

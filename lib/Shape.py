@@ -2,11 +2,88 @@ import cv2
 import numpy as np
 import math
 from utils import utils
+from utils import Point
 
 class Shape:
-    def __init__(self):
-        self.points = []
+    def __init__(self, points=[]):
+        self.points = points
+        self.pts = points
+
         self.Ypoints = []
+
+    def add_point(self, point):
+
+        self.pts.append(point)
+
+    def align_to_shape(self, s, w):
+        # s = first shape
+        # w = weight matrix
+
+        p = self.get_alignment_params(s, w)
+        return self.apply_params_to_shape(p)
+
+    def get_alignment_params(self, s, w):
+        """ Gets the parameters required to align the shape to the given shape
+        using the weight matrix w.  This applies a scaling, transformation and
+        rotation to each point in the shape to align it as closely as possible
+        to the shape.
+        This relies on some linear algebra which we use numpy to solve.
+        [ X2 -Y2   W   0][ax]   [X1]
+        [ Y2  X2   0   W][ay] = [Y1]
+        [ Z    0  X2  Y2][tx]   [C1]
+        [ 0    Z -Y2  X2][ty]   [C2]
+        We want to solve this to find ax, ay, tx, and ty
+        :param shape: The shape to align to
+        :param w: The weight matrix
+        :return x: [ax, ay, tx, ty]
+        """
+
+        X1 = s.__get_X(w)
+        X2 = self.__get_X(w)
+        Y1 = s.__get_Y(w)
+        Y2 = self.__get_Y(w)
+        Z = self.__get_Z(w)
+        W = sum(w)
+        C1 = self.__get_C1(w, s)
+        C2 = self.__get_C2(w, s)
+
+        a = np.array([[ X2, -Y2,   W,  0],
+                      [ Y2,  X2,   0,  W],
+                      [  Z,   0,  X2, Y2],
+                      [  0,   Z, -Y2, X2]])
+
+        b = np.array([X1, Y1, C1, C2])
+        # Solve equations
+        # result is [ax, ay, tx, ty]
+        return np.linalg.solve(a, b)
+
+    def apply_params_to_shape(self, p):
+        new = Shape([]) # TODO!!!!
+        # For each point in current shape
+
+
+        for pt in self.points:
+          new_x = (p[0]*pt.x - p[1]*pt.y) + p[2]
+          new_y = (p[1]*pt.x + p[0]*pt.y) + p[3]
+          new.add_point(Point(new_x, new_y)) # TODO!!!!
+        return new
+
+    def __get_X(self, w):
+
+
+
+        return sum([w[i]*self.pts[i].x for i in range(len(self.pts))])
+    def __get_Y(self, w):
+        return sum([w[i]*self.pts[i].y for i in range(len(self.pts))])
+    def __get_Z(self, w):
+        return sum([w[i]*(self.pts[i].x**2+self.pts[i].y**2) for i in range(len(self.pts))])
+    def __get_C1(self, w, s):
+        return sum([w[i]*(s.pts[i].x*self.pts[i].x + s.pts[i].y*self.pts[i].y) \
+            for i in range(len(self.pts))])
+    def __get_C2(self, w, s):
+        return sum([w[i]*(s.pts[i].y*self.pts[i].x - s.pts[i].x*self.pts[i].y) \
+            for i in range(len(self.pts))])
+
 
     def vecToPoints(self, vec):
         points = []
@@ -18,10 +95,10 @@ class Shape:
                 x = coord
             else:
                 y = coord
-                coords = {'x':x,'y':y}
-                points.append(coords)
+                point = Point(x,y)
+                points.append(point)
             counter = counter +1
-        self.points = points
+        return points
 
     def drawShape(self):
 
@@ -37,97 +114,10 @@ class Shape:
 
         vec = np.array([])
 
-        for point in self.Ypoints:
-            point_arr = [point['x'],point['y']]
+        for point in self.points:
+            point_arr = [point.x,point.y]
             vec = np.append(vec,point_arr)
 
         return vec
 
-    def getYLandmarks(self):
 
-        counter = 0
-        matrix = cv2.imread('_Data/Radiographs/01.tif')
-        matrix = cv2.cvtColor(matrix, cv2.COLOR_BGR2GRAY)
-
-        landmarksY = []
-
-        for point in self.points:
-
-            if((counter+1) % 40 == 0): # last point of a single tooth
-
-                next_point = self.points[counter-39]
-                previous_point = self.points[counter-1]
-            elif (counter == 0): # counter at beggining
-                previous_point = self.points[39]
-                next_point = self.points[counter+1]
-            else:
-                previous_point = self.points[counter-1]
-                next_point = self.points[counter+1]
-
-            w = 2
-            h = 2
-            x = int(point['x'])
-            y = int(point['y'])
-
-            x_start, y_start, x_end, y_end = self.drawPerpendick((x,y),previous_point,next_point,matrix)
-
-            point1 = np.array([x_start,y_start])
-            point2 = np.array([x_end,y_end])
-
-            pixels = utils.createLineIterator(point1,point2,matrix)
-            #cv2.line(matrix,(x_start,y_start),(x_end,y_end),(255,255,0))
-            cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
-
-            a = sorted(pixels, key=lambda a_entry: a_entry[2])
-
-            intensity = a[0][2]
-            x = int(a[0][0])
-            y = int(a[0][1])
-
-            pointDict ={'x':x,'y':y}
-
-            cv2.rectangle(matrix, (x,y), (x+w, y+h), (0,0,255), 2)
-
-            landmarksY.append(pointDict)
-
-            counter = counter +1
-
-        self.Ypoints = landmarksY
-        utils.displayImg('lines',matrix)
-
-    def drawPerpendick(self, start,previous_point,next_point,matrix):
-
-        lineSize = 50
-
-        x = start[0]
-        y = start[1]
-
-        x_prev = int(previous_point['x'])
-        y_prev = int(previous_point['y'])
-
-        x_next = int(next_point['x'])
-        y_next = int(next_point['y'])
-
-        vectorX = x_prev - x_next
-        vectorY = y_prev - y_next
-
-        mag = math.sqrt(vectorX*vectorX + vectorY*vectorY);
-
-        vectorX = vectorX / mag
-        vectorY = vectorY / mag
-
-        temp = vectorX;
-        vectorX = -vectorY;
-        vectorY = temp;
-
-        length = lineSize*(-1)
-
-        x_start = int(x + vectorX * length)
-        y_start = int(y + vectorY * length)
-
-        length = lineSize
-
-        x_end = int(x + vectorX * length)
-        y_end = int(y + vectorY * length)
-
-        return x_start,y_start,x_end,y_end

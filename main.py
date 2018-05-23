@@ -4,108 +4,15 @@ import math
 import cv2
 import numpy as np
 from scipy.spatial import procrustes
+from lib.procrustes import ProcusterAnalysis
 
 from lib.Shape import Shape
 
+from lib.image import Image
+
+from lib.utils import utils
+
 import random
-
-
-class PCAvisualize():
-    def __init__(self):
-        pass
-
-class ProcusterAnalysis:
-    # returns new images array with landmarks scaled, aligned and transformed
-    def __init__(self,images):
-        self.images = images
-        self.doProcrustes()
-
-    def doProcrustes(self):
-        original_landmarks = self.getTeethMatrix(self.images[0].teeth)
-        current_landmarks = self.getTeethMatrix(self.images[1].teeth)
-
-        mtx1, mtx2, disparity = procrustes(original_landmarks, current_landmarks)
-
-        print(mtx2.shape)
-
-
-
-        print(disparity)
-    def getTeethMatrix(self,teeth):
-        teethMatrix = np.empty((0,80),np.uint8)
-
-        for tooth in teeth:
-            landmarksVector = []
-            for landmark in tooth['landmarks']:
-
-                    landmarksVector.append(landmark['x'])
-                    landmarksVector.append(landmark['y'])
-            teethMatrix = np.vstack([teethMatrix,landmarksVector])
-        return teethMatrix
-
-class Image:
-
-
-
-    def __init__(self,name,img_matrix):
-        self.name = name
-        self.img_matrix = img_matrix
-        self.teeth = []
-
-        self.teethAligned = []
-
-        self.loadLandmarks()
-
-        self.showLandmarks()
-    def loadLandmarks(self):
-        dir_landmarks = '_Data/Landmarks/original'
-        id = int(self.name.replace('.tif',''))
-
-        files = glob.glob(dir_landmarks+"/landmarks"+str(id)+"-*.txt")
-
-
-        # path = single tooth
-        # files =  all teeth in an image
-        for path in files:
-            teethID = 1
-            landmarks = []
-
-
-            file = open(path,'r')
-            counter = 0
-            for row in file:
-                row = str(row).rstrip()
-
-                if(counter % 2 == 0):
-                    x = row
-                else:
-                    y = row
-                    coords = {'x':int(float(x)), 'y':int(float(y))}
-
-                    landmarks.append(coords)
-                counter = counter+1
-
-            tooth = {'teethID': teethID,'landmarks':landmarks}
-            self.teeth.append(tooth)
-
-
-    def showLandmarks(self):
-        w = 2
-        h = 2
-        matrix = self.img_matrix
-
-        for tooth in self.teeth:
-            for landmark in tooth['landmarks']:
-                x = int(landmark['x'])
-                y = int(landmark['y'])
-                cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
-
-        #utils.displayImg('points',matrix)
-
-
-
-
-
 
 class ActiveShape:
 
@@ -115,19 +22,26 @@ class ActiveShape:
         self.images = []
 
         self.loadImages()
+
+        self.shapes = ProcusterAnalysis(self.images).shapes
+
+        print(self.shapes[1].points[0].x)
+
         self.getLandmarksMatrix()
+
+
 
         self.pca()
 
         self.shape = Shape()
-        self.shape.vecToPoints(self.pca_model['mean'])
+        self.shape.points = self.shape.vecToPoints(self.pca_model['mean'])
 
         #self.iterateModel()
 
         # doing procuster analysis
         # swithc with PCA when its working
 
-        self.images = ProcusterAnalysis(self.images)
+
 
     def getLandmarksMatrix(self):
 
@@ -136,13 +50,13 @@ class ActiveShape:
         # P = number of teeth in an image * number of points per tooth * 2 (2 represent x and y values)
         matrix = np.empty((0,640),np.uint8)
 
-        for image in self.images:
+        for shape in self.shapes:
             landmarksVector = []
-            for tooth in image.teeth:
-                for landmark in tooth['landmarks']:
+            for point in shape.points:
+                landmarksVector.append(point.x)
+                landmarksVector.append(point.y)
 
-                    landmarksVector.append(landmark['x'])
-                    landmarksVector.append(landmark['y'])
+
             matrix = np.vstack([matrix,landmarksVector])
         self.landmarksMatrix = matrix
 
@@ -178,7 +92,7 @@ class ActiveShape:
         self.pca_model = {'mean': MU, 'eigenvalues':eigenvalues,'eigenvectors':eigenvectors}
 
     def normalize_vector(self,vector,eigenval):
-        return vector / eigenval
+        return vector;
 
 
 
@@ -186,21 +100,19 @@ class ActiveShape:
 
         # get new shape based on previous iteration shape
         # starting shape is a mean shape
-        self.shape.getYLandmarks()
+        Yshape = Shape([])
+        Yshape.points = utils.getYLandmarks(self.shape.points)
 
-        shape = self.shape.pointsToVec()
+
+        shape = Yshape.pointsToVec()
 
         mean_reshaped = np.reshape(self.pca_model['mean'],(640,1))
         shape_reshaped = np.reshape(shape,(640,1))
 
-        print(mean_reshaped.shape)
+        print(mean_reshaped)
 
-        mtx1, mtx2, disparity = procrustes(mean_reshaped,shape_reshaped)
 
-        shape = mtx2*shape_reshaped
-        mean_procrusted = mean_reshaped*mtx1
-
-        var = shape.flatten() - mean_procrusted.flatten()
+        var = shape_reshaped - mean_reshaped.flatten()
 
 
         new = self.pca_model['mean']
@@ -229,7 +141,7 @@ class ActiveShape:
 
 
         print("printing final shape")
-        self.shape.vecToPoints(new)
+        self.shape.points = self.shape.vecToPoints(new)
 
         self.shape.drawShape()
 
@@ -255,6 +167,7 @@ class ActiveShape:
 
 model = ActiveShape()
 
-for i in range(5):
+
+for i in range(1):
     model.doIteration()
 
