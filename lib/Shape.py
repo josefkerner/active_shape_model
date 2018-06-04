@@ -14,6 +14,19 @@ class Shape:
 
         self.pts.append(point)
 
+    def placeModel(self):
+        points = []
+        x_offset = 1360
+        y_offset = 740
+        for point in self.pts:
+            point.x = point.x + x_offset
+            point.y = point.y + y_offset
+
+            points.append(point)
+        self.pts = points
+
+
+
     @staticmethod
     def from_vector(vec):
         s = Shape([])
@@ -27,6 +40,24 @@ class Shape:
 
         p = self.get_alignment_params(s, w)
         return self.apply_params_to_shape(p)
+
+    # TODO
+    def get_normal_to_point(self, p_num):
+        # Normal to first point
+        x = 0; y = 0; mag = 0
+        if p_num == 0:
+          x = self.pts[1].x - self.pts[0].x
+          y = self.pts[1].y - self.pts[0].y
+        # Normal to last point
+        elif p_num == len(self.pts)-1:
+          x = self.pts[-1].x - self.pts[-2].x
+          y = self.pts[-1].y - self.pts[-2].y
+        # Must have two adjacent points, so...
+        else:
+          x = self.pts[p_num+1].x - self.pts[p_num-1].x
+          y = self.pts[p_num+1].y - self.pts[p_num-1].y
+        mag = math.sqrt(x**2 + y**2)
+        return (-y/mag, x/mag)
 
     def get_alignment_params(self, s, w):
         """ Gets the parameters required to align the shape to the given shape

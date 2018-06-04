@@ -10,6 +10,7 @@
     <orderEntry type="module" module-name="spark-streaming" />
     <orderEntry type="module" module-name="advancedanalytics" />
     <orderEntry type="module" module-name="advancedanalytics" />
+    <orderEntry type="module" module-name="advancedanalytics" />
   </component>
   <component name="TestRunnerService">
     <option name="PROJECT_TEST_RUNNER" value="Unittests" />
