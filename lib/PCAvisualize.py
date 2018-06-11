@@ -12,9 +12,8 @@ class PCAvisualize:
 
         #self.visualizeEigenVals()
 
-        self.visualizeEigenVec()
+        #self.visualizeEigenVec()
 
-        exit(1)
 
     def visualizeEigenVals(self):
 
@@ -60,20 +59,31 @@ class PCAvisualize:
         eigenVectors = eigenVectors.T
         eigenVectorsMin = min(eigenVectors[0])
 
-        print('min',eigenVectorsMin)
         eigenVectorsMax = max(eigenVectors[0])
 
-        plt.figure(1)
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1, axisbg="1.0")
 
         plt.axis([eigenVectorsMin,eigenVectorsMax,eigenVectorsMin,eigenVectorsMax])
 
+        PCAdata = []
 
-        for i in range(1,len(eigenVectors)):
-            print(i)
-            num = 200 + i
-            print(num)
-            plt.subplot(num)
-            plt.plot(eigenVectors[i][0:319], eigenVectors[i][320:639])
 
+        for i in range(0,3):
+
+            print('i is:',i)
+
+            vec = (eigenVectors[i][0:319], eigenVectors[i][320:639])
+            PCAdata.append(vec)
+        colors = ("red","green","blue")
+
+        groups = ("PCA1","PCA2","PCA3")
+
+        for data,color, group in zip(PCAdata, colors, groups):
+            x,y =data
+            plt.scatter(x,y, alpha=0.8, c=color, edgecolors='none', label=group)
+
+        plt.title('Eigenvectors visualization')
+        plt.legend(loc=2)
         plt.show()
 

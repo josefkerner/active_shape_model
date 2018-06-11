@@ -10,20 +10,79 @@ class Shape:
 
         self.Ypoints = []
 
+    def redrawShape(self):
+
+        placementImage = self.placementImage.copy()
+
+        points = []
+
+        source_points = self.pts
+
+
+
+        for point in source_points:
+
+            x = point.x + self.Xpos*2
+            y = point.y + self.Ypos*2
+
+            pt = Point(x,y)
+
+            points.append(pt)
+        self.currentPoints = points
+
+        print('actucal point', self.currentPoints[0].x)
+
+        utils.drawShape('positioning',placementImage,self.currentPoints)
+
+
     def add_point(self, point):
 
         self.pts.append(point)
 
-    def placeModel(self):
-        points = []
-        x_offset = 1360
-        y_offset = 740
-        for point in self.pts:
-            point.x = point.x + x_offset
-            point.y = point.y + y_offset
 
-            points.append(point)
-        self.pts = points
+
+    def getPositions(self, event,x,y,flags, param):
+        if(event == cv2.EVENT_LBUTTONDOWN):
+            print('pravda')
+            self.moving = True
+            self.Xpos = x
+            self.Ypos = y
+            self.redrawShape()
+
+        if(event == cv2.EVENT_MOUSEMOVE):
+            if(self.moving == True):
+                pass
+
+        if(event == cv2.EVENT_LBUTTONUP):
+            self.moving = False
+
+
+
+
+    def placeShape(self,imageMatrix):
+
+        self.placementImage = imageMatrix
+
+        self.moving = False
+        self.Xpos = 0
+        self.Ypos = 0
+
+
+
+        cv2.namedWindow('positioning')
+
+        cv2.setMouseCallback('positioning', self.getPositions)
+
+        self.redrawShape()
+
+
+        #cv2.createTrackbar('X position','positioning',-100,2400, self.setXPosition)
+        #cv2.createTrackbar('Y position','positioning',0,1000, self.setYPosition)
+
+        cv2.waitKey(0)
+
+        self.pts = self.currentPoints
+
 
 
 
@@ -41,7 +100,7 @@ class Shape:
         p = self.get_alignment_params(s, w)
         return self.apply_params_to_shape(p)
 
-    # TODO
+
     def get_normal_to_point(self, p_num):
         # Normal to first point
         x = 0; y = 0; mag = 0
@@ -96,14 +155,14 @@ class Shape:
         return np.linalg.solve(a, b)
 
     def apply_params_to_shape(self, p):
-        new = Shape([]) # TODO!!!!
+        new = Shape([])
         # For each point in current shape
 
 
         for pt in self.pts:
           new_x = (p[0]*pt.x - p[1]*pt.y) + p[2]
           new_y = (p[1]*pt.x + p[0]*pt.y) + p[3]
-          new.add_point(Point(new_x, new_y)) # TODO!!!!
+          new.add_point(Point(new_x, new_y))
         return new
 
     def __get_X(self, w):
@@ -144,14 +203,7 @@ class Shape:
             counter = counter +1
         return points
 
-    def drawShape(self):
 
-        test_images = ['_Data/Radiographs/01.tif']
-
-        for test_image in test_images:
-            matrix = cv2.imread(test_image)
-
-            utils.drawShape(matrix,self.pts)
 
     def pointsToVec(self):
         #vec = np.empty((640,))

@@ -3,6 +3,7 @@ import cv2
 
 import math
 
+
 def drange(start, stop, step):
   r = start
   while r < stop:
@@ -12,88 +13,14 @@ def drange(start, stop, step):
 class utils:
 
     # determines waiting paramater in miliseconds for showing image, if 0 then user needs to close window manually
-    imgWait = 1
+    imgWait = 0
 
     # determines scale factor for showing images
-    imgScaleFactor = 0.7
+    imgScaleFactor = 0.5
 
-
-    @staticmethod
-    def createLineIterator(P1, P2, img):
-        """
-        Produces and array that consists of the coordinates and intensities of each pixel in a line between two points
-
-        Parameters:
-            -P1: a numpy array that consists of the coordinate of the first point (x,y)
-            -P2: a numpy array that consists of the coordinate of the second point (x,y)
-            -img: the image being processed
-
-        Returns:
-            -it: a numpy array that consists of the coordinates and intensities of each pixel in the radii (shape: [numPixels, 3], row = [x,y,intensity])
-        """
-       #define local variables for readability
-        imageH = img.shape[0]
-        imageW = img.shape[1]
-        P1X = P1[0]
-        P1Y = P1[1]
-        P2X = P2[0]
-        P2Y = P2[1]
-
-        #difference and absolute difference between points
-        #used to calculate slope and relative location between points
-        dX = P2X - P1X
-        dY = P2Y - P1Y
-        dXa = np.abs(dX)
-        dYa = np.abs(dY)
-
-        #predefine numpy array for output based on distance between points
-        itbuffer = np.empty(shape=(np.maximum(dYa,dXa),3),dtype=np.float32)
-        itbuffer.fill(np.nan)
-
-   #Obtain coordinates along the line using a form of Bresenham's algorithm
-        negY = P1Y > P2Y
-        negX = P1X > P2X
-        if P1X == P2X: #vertical line segment
-           itbuffer[:,0] = P1X
-           if negY:
-               itbuffer[:,1] = np.arange(P1Y - 1,P1Y - dYa - 1,-1)
-           else:
-               itbuffer[:,1] = np.arange(P1Y+1,P1Y+dYa+1)
-        elif P1Y == P2Y: #horizontal line segment
-           itbuffer[:,1] = P1Y
-           if negX:
-               itbuffer[:,0] = np.arange(P1X-1,P1X-dXa-1,-1)
-           else:
-               itbuffer[:,0] = np.arange(P1X+1,P1X+dXa+1)
-        else: #diagonal line segment
-           steepSlope = dYa > dXa
-           if steepSlope:
-               slope = dX.astype(np.float32)/dY.astype(np.float32)
-               if negY:
-                   itbuffer[:,1] = np.arange(P1Y-1,P1Y-dYa-1,-1)
-               else:
-                   itbuffer[:,1] = np.arange(P1Y+1,P1Y+dYa+1)
-               itbuffer[:,0] = (slope*(itbuffer[:,1]-P1Y)).astype(np.int) + P1X
-           else:
-               slope = dY.astype(np.float32)/dX.astype(np.float32)
-               if negX:
-                   itbuffer[:,0] = np.arange(P1X-1,P1X-dXa-1,-1)
-               else:
-                   itbuffer[:,0] = np.arange(P1X+1,P1X+dXa+1)
-               itbuffer[:,1] = (slope*(itbuffer[:,0]-P1X)).astype(np.int) + P1Y
-
-        #Remove points outside of image
-        colX = itbuffer[:,0]
-        colY = itbuffer[:,1]
-        itbuffer = itbuffer[(colX >= 0) & (colY >=0) & (colX<imageW) & (colY<imageH)]
-
-        #Get intensities from img ndarray
-
-
-        itbuffer[:,2] = img[itbuffer[:,1].astype(np.uint),itbuffer[:,0].astype(np.uint)]
-
-        return itbuffer
-
+    # displays and image with a scaling factor
+    # title = title of the image
+    # img_matrix = image matrix
     @staticmethod
     def displayImg(title, img_matrix):
 
@@ -105,12 +32,15 @@ class utils:
 
         cv2.waitKey(utils.imgWait)
 
+    # draws a shape from its points
     @staticmethod
-    def drawShape(img,points):
+    def drawShape(title, img,points):
         w = 2
         h = 2
 
-        img = cv2.imread(img);
+        if(isinstance(img,basestring)):
+
+            img = cv2.imread(img);
 
         for point in points:
             x = int(point.x)
@@ -118,11 +48,42 @@ class utils:
 
 
             cv2.rectangle(img, (x,y), (x+w, y+h), (255,0,255), 2)
-        utils.displayImg('drawn shape',img)
+        utils.displayImg(title,img)
+
+    @staticmethod
+    def clahe(image, clipLimit=2.0, gridSize=(32,32)):
+        cl = cv2.createCLAHE(clipLimit, gridSize)
+        return cl.apply(image)
+
+    @staticmethod
+    def threshold(img, threshold):
+        b = np.empty(img.shape)
+        (h,w) = img.shape
+        for i in range(h):
+            for j in range(w):
+                b[i,j] = 255 if img[i,j] > threshold else 0
+        return b
+
+    @staticmethod
+    def applyFilters(i):
+
+        i = utils.clahe(i)
+
+
+        sobelx = cv2.Sobel(i, cv2.CV_64F, 1, 0, ksize=9)
+        sobely = cv2.Sobel(i, cv2.CV_64F, 0, 1, ksize=9)
+        i = np.sqrt(sobelx**2 + sobely**2)
+
+        #i = utils.threshold(i,200000)
+
+        #utils.displayImg('gradient image', i)
+
+
+        return i
+
 
     @staticmethod
     def produce_gradient_image(i, scale):
-
 
         i = cv2.cvtColor(i, cv2.COLOR_RGB2GRAY)
 
@@ -138,55 +99,23 @@ class utils:
         start_y = 1300
         end_y = 1750
 
-        print(i.shape)
-
         i = i[start_x:end_x,start_y:end_y]
 
-
-        i = i.astype(np.uint8)
-
-        print(i.shape)
-
-
-        #i = cv2.medianBlur(i,7)
-
-        #i = cv2.bilateralFilter(i,15,80,80)
-
-
-
-        i = cv2.fastNlMeansDenoising(i,None,20,21,5)
-
-
-
-        i = np.uint8(i)
-        i = cv2.Canny(i,20,30)
-
-        i = cv2.Scharr(i,2,1,0)
-        #i2 = cv2.Canny(i,20,30)
-
-        #i = cv2.addWeighted(i1,0.5,i2,0.5,0)
+        i = utils.applyFilters(i)
 
         black_image[start_x:start_x+i.shape[0], start_y:start_y+i.shape[1]] = i
 
         i = black_image
 
-
-
-        #i = cv2.fastNlMeansDenoising(i,None,30,15,10)
-
-        utils.displayImg('black', i)
-
-        #exit(1)
-
-        #i = cv2.Sobel(i,cv2.CV_64F,1,0,ksize=3)
-
-        #i = cv2.Laplacian(i,cv2.CV_64F)
-
-
         return i
 
+    # gets max along a normal to the current point
+    # point = actual point
+    # points = all points in a shape
+    # counter = counter of an actual point in all points
+    # matrix = image pixel matrix
     @staticmethod
-    def getMaxAlongNormal2(point, points,counter, matrix):
+    def getMaxAlongNormal(point, points,counter, matrix):
 
         if((counter+1) % 40 == 0): # last point of a single tooth
 
@@ -201,9 +130,11 @@ class utils:
         x = int(point.x)
         y = int(point.y)
 
+
+        # gets normal vector
         norm = utils.getNormalToPoint((x,y),previous_point,next_point,matrix)
 
-
+        # obtains max point on the normal
         maxPoint = utils.scanNormal(norm,point,matrix)
 
         return maxPoint
@@ -270,54 +201,6 @@ class utils:
         return max_pt
 
 
-    # gets a point with maximum intensity along a normal
-    @staticmethod
-    def getMaxAlongNormal(point, points,counter, matrix):
-        if((counter+1) % 40 == 0): # last point of a single tooth
-
-                next_point = points[counter-39]
-                previous_point = points[counter-1]
-        elif (counter == 0): # counter at beggining
-                previous_point = points[39]
-                next_point = points[counter+1]
-        else:
-                previous_point = points[counter-1]
-                next_point = points[counter+1]
-
-        w = 2
-        h = 2
-        x = int(point.x)
-        y = int(point.y)
-
-        x_start, y_start, x_end, y_end = utils.drawPerpendick((x,y),previous_point,next_point,matrix)
-
-        point1 = np.array([x_start,y_start])
-        point2 = np.array([x_end,y_end])
-
-        pixels = utils.createLineIterator(point1,point2,matrix)
-        #cv2.line(matrix,(x_start,y_start),(x_end,y_end),(255,255,0))
-
-        # draw rectangle on a place of point
-        #cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
-
-        a = sorted(pixels, key=lambda a_entry: a_entry[2])
-
-
-        intensity = a[len(a)-1][2]
-        x = int(a[len(a)-1][0])
-        y = int(a[len(a)-1][1])
-
-        #print(counter,intensity)
-
-
-        # draw rectangle on a place of lowest intensity value
-        #cv2.rectangle(matrix, (x,y), (x+w, y+h), (255,0,255), 2)
-
-        point = Point(x,y)
-
-        return point
-
-
     @staticmethod
     def getYLandmarks(points, image):
 
@@ -333,7 +216,7 @@ class utils:
 
         for point in points:
 
-            maxPoint = utils.getMaxAlongNormal2(point, points,counter, matrix)
+            maxPoint = utils.getMaxAlongNormal(point, points,counter, matrix)
 
             x = int(maxPoint.x)
             y = int(maxPoint.y)
@@ -345,8 +228,7 @@ class utils:
 
             counter = counter +1
 
-        # displays img with resulting points
-        utils.displayImg('lines',matrix)
+
 
         return landmarksY
 
@@ -367,45 +249,6 @@ class utils:
 
         return (-vectorY/mag, vectorX/mag)
 
-
-    # DEPRECATED
-    @staticmethod
-    def drawPerpendick(start,previous_point,next_point,matrix):
-
-        lineSize = 30
-
-        x = start[0]
-        y = start[1]
-
-        x_prev = int(previous_point.x)
-        y_prev = int(previous_point.y)
-
-        x_next = int(next_point.x)
-        y_next = int(next_point.y)
-
-        vectorX = x_prev - x_next
-        vectorY = y_prev - y_next
-
-        mag = math.sqrt(vectorX*vectorX + vectorY*vectorY);
-
-        vectorX = vectorX / mag
-        vectorY = vectorY / mag
-
-        temp = vectorX;
-        vectorX = -vectorY;
-        vectorY = temp;
-
-        length = lineSize*(-1)
-
-        x_start = int(x + vectorX * length)
-        y_start = int(y + vectorY * length)
-
-        length = lineSize
-
-        x_end = int(x + vectorX * length)
-        y_end = int(y + vectorY * length)
-
-        return x_start,y_start,x_end,y_end
 
 
 

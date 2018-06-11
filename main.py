@@ -18,6 +18,9 @@ import random
 
 class ActiveShape:
 
+    TESTING_MODE = 0
+    TESTING_IMAGE_INDEX = 6
+
 
     def __init__(self):
 
@@ -25,58 +28,44 @@ class ActiveShape:
 
         self.loadImages()
 
+
+
         procrustes = ProcusterAnalysis(self.images)
 
         self.shapes = procrustes.shapes
 
-        # obtaining target shape for evaluation on the first model
-        self.targetShape = Shape([])
-        self.targetShape.pts = self.images[0].points
-
-
-        self.shapes = self.shapes[1:]
+        self.leaveOneOut(ActiveShape.TESTING_IMAGE_INDEX)
         self.w = procrustes.w
 
         self.gradientImage = None
 
 
-        # obtain shape matrix from points
-        self.getShapesMatrix()
 
         # computing PCA model
         (self.evals, self.evecs, self.mean, self.modes) = self.__construct_model(self.shapes)
 
-        PCAvisualize((self.evals, self.evecs, self.mean))
+        #PCAvisualize((self.evals, self.evecs, self.mean))
 
 
         # constructing starting shape points from mean shape vector
         self.shape = Shape.from_vector(self.mean)
-        self.shape.placeModel()
 
-        #utils.drawShape('_Data/Radiographs/03.tif',self.shape.pts)
-
-        #self.shape.points = self.shape.vecToPoints(self.pca_model['mean'])
-
-        #self.iterateModel()
+        if(ActiveShape.TESTING_MODE == 1 ):
+            utils.drawShape('mean shape', '_Data/Radiographs/01.tif', self.shape.pts);
 
 
-    def getShapesMatrix(self):
+    # used for training and testing
+    # leaves selected shape from the training data
+    # index = image number
+    def leaveOneOut(self, index):
+        # obtaining target shape for evaluation
+        self.targetShape = Shape([])
+        self.targetShape.pts = self.images[index-1].points
 
-        # dimensions have to be N x P
-        # N = number of images
-        # P = number of teeth in an image * number of points per tooth * 2 (2 represent x and y values)
-        matrix = np.empty((0,640),np.uint8)
-
-        for shape in self.shapes:
-            landmarksVector = []
-            for point in shape.pts:
-                landmarksVector.append(point.x)
-                landmarksVector.append(point.y)
+        self.shapes.pop(index-1)
 
 
-            matrix = np.vstack([matrix,landmarksVector])
-        self.landmarksMatrix = matrix
-
+    # constructs model
     def __construct_model(self, shapes):
         """ Constructs the shape model """
         shape_vectors = np.array([s.get_vector() for s in self.shapes])
@@ -107,7 +96,7 @@ class ActiveShape:
         return (evals[:t], evecs[:,:t], mean, t)
 
 
-
+    # does iteration on an image
     def doIteration(self, image):
 
         Yshape = Shape([])
@@ -116,12 +105,16 @@ class ActiveShape:
 
         if(self.gradientImage == None):
 
+            # performed only in first iteration
+            self.shape.placeShape(imageMatrix)
             self.gradientImage = utils.produce_gradient_image(imageMatrix,1)
 
         gradintImg = self.gradientImage.copy()
 
-
         Yshape.pts = utils.getYLandmarks(self.shape.pts, gradintImg)
+
+        if(ActiveShape.TESTING_MODE == 1):
+            utils.drawShape('Y points',image,Yshape.pts)
 
         meanPoints = Shape.from_vector(self.mean)
 
@@ -130,21 +123,18 @@ class ActiveShape:
         var = new_s.get_vector() - self.mean
         new = self.mean
 
-        #b = [700,-147,1,1,1,-47,-49,1,1,-10,1]
         for i in range(len(self.evecs.T)):
 
             b = np.dot(self.evecs[:,i],var)
             max_b = 3*math.sqrt(self.evals[i])
             b = max(min(b, max_b), -max_b)
 
-            #print("b vector is:",b)
             new = new + self.evecs[:,i]*b
-            #new = new + self.evecs[:,i]*b[i]
 
         self.shape = Shape.from_vector(new).align_to_shape(Yshape, self.w)
 
 
-        utils.drawShape(image,self.shape.pts)
+
 
         return utils.getLoss(self.shape, self.targetShape)
 
@@ -164,6 +154,37 @@ class ActiveShape:
 
         self.images = images
 
+    def showCurrentShape(self, image):
+        utils.drawShape('new shape',image,self.shape.pts)
+
+    def extractShape(self,imgPath):
+        img = cv2.imread(imgPath)
+        mask = np.zeros((img.shape[0], img.shape[1]))
+
+        coordinates = []
+        counter = 1
+        for point in self.shape.pts:
+            coord = [int(point.x), int(point.y)]
+            coordinates.append(coord)
+
+            if(counter % 40 == 0):
+                # new tooth starting
+                # draw current tooth
+                coordinates = np.asarray(coordinates)
+                cv2.fillConvexPoly(mask, coordinates, 1)
+                coordinates = []
+
+
+            counter = counter +1
+
+        mask = mask.astype(np.bool)
+        out = np.zeros_like(img)
+        out[mask] = img[mask]
+
+        utils.displayImg('image',out)
+
+
+
 model = ActiveShape()
 
 
@@ -171,11 +192,20 @@ model = ActiveShape()
 def iterateOnImage(img, iterations):
 
 
+    previousAcc = 200
     for i in range(iterations):
 
         acc = model.doIteration(img)
+        if (acc > previousAcc):
+            break
+
+
 
         print(acc)
+        previousAcc = acc
 
-iterateOnImage('_Data/Radiographs/01.tif',150)
+    model.showCurrentShape(img)
+    model.extractShape(img)
+
+iterateOnImage('_Data/Radiographs/06.tif',20)
 
